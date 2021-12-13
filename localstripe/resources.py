@@ -26,8 +26,8 @@ import time
 
 from dateutil.relativedelta import relativedelta
 
-from .errors import UserError
-from .webhooks import schedule_webhook
+from errors import UserError
+from webhooks import schedule_webhook
 
 
 # Save built-in keyword `type`, because some classes override it by using
@@ -1047,7 +1047,8 @@ class Invoice(StripeObject):
             self.lines._list.append(InvoiceLineItem(ii))
 
         if len(self.lines._list):
-            self.currency = self.lines._list[0].currency
+            # self.currency = self.lines._list[0].currency
+            pass
         else:
             self.currency = 'eur'  # arbitrary default
 
@@ -1583,16 +1584,16 @@ class InvoiceLineItem(StripeObject):
         if self.type == 'subscription':
             self.subscription_item = item.id
             self.subscription = item._subscription
-            self.plan = item.plan
+            # self.plan = item.plan
             self.proration = False
-            self.currency = item.plan.currency
-            self.description = item.plan.name
-            self.amount = item._calculate_amount()
+            # self.currency = item.plan.currency
+            # self.description = item.plan.name
+            # self.amount = item._calculate_amount()
             self.period = item._current_period()
         elif self.type == 'invoiceitem':
             self.invoice_item = item.id
             self.subscription = item.subscription
-            self.plan = item.plan
+            # self.plan = item.plan
             self.proration = item.proration
             self.currency = item.currency
             self.description = item.description
@@ -2267,7 +2268,7 @@ class Product(StripeObject):
     object = 'product'
     _id_prefix = 'prod_'
 
-    def __init__(self, id=None, name=None, type=None, active=True,
+    def __init__(self, id=None, name=None, type='service', active=True,
                  caption=None, description=None, attributes=None,
                  shippable=True, url=None, statement_descriptor=None,
                  metadata=None, **kwargs):
@@ -2600,17 +2601,29 @@ class Subscription(StripeObject):
                 assert proration_behavior in ['create_prorations', 'none']
             assert type(items) is list
             for item in items:
-                assert type(item.get('plan', None)) is str
-                if item.get('quantity', None) is not None:
-                    item['quantity'] = try_convert_to_int(item['quantity'])
-                    assert type(item['quantity']) is int
-                    assert item['quantity'] > 0
-                else:
-                    item['quantity'] = 1
-                item['tax_rates'] = item.get('tax_rates', None)
-                if item['tax_rates'] is not None:
-                    assert type(item['tax_rates']) is list
-                    assert all(type(tr) is str for tr in item['tax_rates'])
+                try:
+                    assert type(item.get('plan', None)) is str or None
+                    if item.get('quantity', None) is not None:
+                        item['quantity'] = try_convert_to_int(item['quantity'])
+                        assert type(item['quantity']) is int
+                        assert item['quantity'] > 0
+                    else:
+                        item['quantity'] = 1
+                    item['tax_rates'] = item.get('tax_rates', None)
+                    if item['tax_rates'] is not None:
+                        assert type(item['tax_rates']) is list
+                        assert all(type(tr) is str for tr in item['tax_rates'])
+                except Exception:
+                    if item.get('quantity', None) is not None:
+                        item['quantity'] = try_convert_to_int(item['quantity'])
+                        assert type(item['quantity']) is int
+                        assert item['quantity'] > 0
+                    else:
+                        item['quantity'] = 1
+                    item['tax_rates'] = item.get('tax_rates', None)
+                    if item['tax_rates'] is not None:
+                        assert type(item['tax_rates']) is list
+                        assert all(type(tr) is str for tr in item['tax_rates'])
             assert type(enable_incomplete_payments) is bool
             assert payment_behavior in ('allow_incomplete',
                                         'error_if_incomplete')
@@ -2630,10 +2643,13 @@ class Subscription(StripeObject):
             raise UserError(400, 'Bad request', {}, 'card_error')
 
         for item in items:
-            Plan._api_retrieve(item['plan'])  # to return 404 if not existant
-            # To return 404 if not existant:
-            if item['tax_rates'] is not None:
-                [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
+            try:
+                Plan._api_retrieve(item['plan'])  # to return 404 if not existant
+                # To return 404 if not existant:
+                if item['tax_rates'] is not None:
+                    [TaxRate._api_retrieve(tr) for tr in item['tax_rates']]
+            except Exception:
+                pass
         # To return 404 if not existant:
         if default_tax_rates is not None:
             default_tax_rates = [TaxRate._api_retrieve(tr)
@@ -2683,7 +2699,7 @@ class Subscription(StripeObject):
         self.items._list.append(
             SubscriptionItem(
                 subscription=self.id,
-                plan=items[0]['plan'],
+                # plan=items[0]['plan'],
                 quantity=items[0]['quantity'],
                 tax_rates=items[0]['tax_rates']))
 
@@ -2694,9 +2710,9 @@ class Subscription(StripeObject):
 
         schedule_webhook(Event('customer.subscription.created', self))
 
-    @property
-    def plan(self):
-        return self.items._list[0].plan
+    # @property
+    # def plan(self):
+    #     return self.items._list[0].plan
 
     @property
     def current_period_start(self):
@@ -2979,7 +2995,7 @@ class SubscriptionItem(StripeObject):
             if subscription is not None:
                 assert type(subscription) is str
                 assert subscription.startswith('sub_')
-            assert type(plan) is str
+            # assert type(plan) is str
             assert type(quantity) is int and quantity > 0
             if tax_rates is not None:
                 assert type(tax_rates) is list
@@ -2987,7 +3003,7 @@ class SubscriptionItem(StripeObject):
         except AssertionError:
             raise UserError(400, 'Bad request')
 
-        plan = Plan._api_retrieve(plan)  # to return 404 if not existant
+        # plan = Plan._api_retrieve(plan)  # to return 404 if not existant
         # To return 404 if not existant:
         if tax_rates is not None:
             tax_rates = [TaxRate._api_retrieve(tr) for tr in tax_rates]
@@ -2995,7 +3011,7 @@ class SubscriptionItem(StripeObject):
         # All exceptions must be raised before this point.
         super().__init__()
 
-        self.plan = plan
+        # self.plan = plan
         self.quantity = quantity
         self.tax_rates = tax_rates
         self.metadata = metadata or {}
@@ -3010,56 +3026,56 @@ class SubscriptionItem(StripeObject):
             start_date = int(time.time())
 
         end_date = datetime.fromtimestamp(start_date)
-        if self.plan.interval == 'day':
-            end_date += timedelta(days=1)
-        elif self.plan.interval == 'week':
-            end_date += timedelta(days=7)
-        elif self.plan.interval == 'month':
-            end_date += relativedelta(months=1)
-        elif self.plan.interval == 'year':
-            end_date += relativedelta(years=1)
+        # if self.plan.interval == 'day':
+        #     end_date += timedelta(days=1)
+        # elif self.plan.interval == 'week':
+        #     end_date += timedelta(days=7)
+        # elif self.plan.interval == 'month':
+        #     end_date += relativedelta(months=1)
+        # elif self.plan.interval == 'year':
+        #     end_date += relativedelta(years=1)
 
         return dict(start=start_date, end=int(end_date.timestamp()))
 
-    def _calculate_amount(self):
-        if self.plan.billing_scheme == 'per_unit':
-            return self.plan.amount * self.quantity
+    # def _calculate_amount(self):
+    #     if self.plan.billing_scheme == 'per_unit':
+    #         return self.plan.amount * self.quantity
 
-        if self.plan.tiers_mode == 'volume':
-            index = next(
-                (i for i, t in enumerate(self.plan.tiers)
-                    if t['up_to'] == 'inf'
-                    or self.quantity <= int(t['up_to'])))
-            return self._calculate_amount_in_tier(
-                self.quantity, index)
+    #     if self.plan.tiers_mode == 'volume':
+    #         index = next(
+    #             (i for i, t in enumerate(self.plan.tiers)
+    #                 if t['up_to'] == 'inf'
+    #                 or self.quantity <= int(t['up_to'])))
+    #         return self._calculate_amount_in_tier(
+    #             self.quantity, index)
 
-        if self.plan.tiers_mode == 'graduated':
-            quantity = self.quantity
-            amount = 0
+    #     if self.plan.tiers_mode == 'graduated':
+    #         quantity = self.quantity
+    #         amount = 0
 
-            tier_from = -1
-            for i, t in enumerate(self.plan.tiers):
-                tier_from += 1
-                if quantity <= 0 or tier_from > quantity:
-                    break
+    #         tier_from = -1
+    #         for i, t in enumerate(self.plan.tiers):
+    #             tier_from += 1
+    #             if quantity <= 0 or tier_from > quantity:
+    #                 break
 
-                amount += self._calculate_amount_in_tier(
-                    quantity - tier_from, i)
+    #             amount += self._calculate_amount_in_tier(
+    #                 quantity - tier_from, i)
 
-                if t['up_to'] == 'inf':
-                    quantity = 0
-                else:
-                    up_to = int(t['up_to'])
-                    quantity -= up_to
-                    tier_from = up_to
+    #             if t['up_to'] == 'inf':
+    #                 quantity = 0
+    #             else:
+    #                 up_to = int(t['up_to'])
+    #                 quantity -= up_to
+    #                 tier_from = up_to
 
-            return amount
+    #         return amount
 
-        return 0
+    #     return 0
 
-    def _calculate_amount_in_tier(self, quantity, index):
-        t = self.plan.tiers[index]
-        return int(t['unit_amount']) * quantity + int(t['flat_amount'])
+    # def _calculate_amount_in_tier(self, quantity, index):
+    #     t = self.plan.tiers[index]
+    #     return int(t['unit_amount']) * quantity + int(t['flat_amount'])
 
 
 class TaxId(StripeObject):
